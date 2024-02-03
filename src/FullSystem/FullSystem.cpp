@@ -172,7 +172,7 @@ void FullSystem::printResult(std::string file) {
   printf("saved to %s\n", file.c_str());
 }
 
-Vec4 FullSystem::trackNewCoarse(FrameHessian *fh) {
+Vec4 FullSystem::trackNewCoarse(FrameHessian *fh) {  // todo: 里面有很多SE3的操作，尝试看能不能优化一下
 
   assert(allFrameHistory.size() > 2);
   // set pose initialization.
@@ -208,17 +208,17 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian *fh) {
     lastF_2_fh_imu = fh_2_w.inverse() * lastF->shell->camToWorld;
     lastF_2_fh_tries.push_back(lastF_2_fh_imu);
   }
-  // assume constant motion.
+  // assume constant motion.  匀速运动
   lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast);
-  // assume double motion (frame skipped)
+  // assume double motion (frame skipped)  倍速运动
   lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
                              lastF_2_slast);
-  // assume half motion.
+  // assume half motion.  半速运动
   lastF_2_fh_tries.push_back(SE3::exp(fh_2_slast.log() * 0.5).inverse() *
                              lastF_2_slast);
-  // assume zero motion.
+  // assume zero motion.  静止
   lastF_2_fh_tries.push_back(lastF_2_slast);
-  // assume zero motion FROM KF.
+  // assume zero motion FROM KF. 静止
   lastF_2_fh_tries.push_back(SE3());
 
   // get last delta-movement.
@@ -233,7 +233,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian *fh) {
       {0, -1, 1},  {-1, 0, 1},  {1, -1, 0},  {0, 1, -1},   {1, 0, -1},
       {-1, -1, 0}, {0, -1, -1}, {-1, 0, -1}, {-1, -1, -1}, {-1, -1, 1},
       {-1, 1, -1}, {-1, 1, 1},  {1, -1, -1}, {1, -1, 1},   {1, 1, -1},
-      {1, 1, 1}};
+      {1, 1, 1}}; // 26 种旋转的options
   for (float rot_delta = 0.02; rot_delta < 0.05; rot_delta += 0.01) {
     for (auto &rs : rot_signs) {
       lastF_2_fh_tries.push_back(
@@ -360,7 +360,7 @@ void FullSystem::traceNewCoarse(FrameHessian *fh) {
   for (FrameHessian *host : frameHessians) // go through all active frames
   {
 
-    SE3 hostToNew = fh->PRE_worldToCam * host->PRE_camToWorld;
+    SE3 hostToNew = fh->PRE_worldToCam * host->PRE_camToWorld;  //! 利用之前（怎么得到的）的位姿, 计算host到new的位姿
     Mat33f KRKi = K * hostToNew.rotationMatrix().cast<float>() * K.inverse();
     Vec3f Kt = K * hostToNew.translation().cast<float>();
 
@@ -679,23 +679,23 @@ void FullSystem::addActiveFrame(const std::vector<Vec7> &new_imu_data,
 
   // make Images / derivatives etc.
   fh->ab_exposure = image->exposure_time;
-  fh->makeImages(image->image, &HCalib);
+  fh->makeImages(image->image, &HCalib);  //挺花时间的
 
-  if (!initialized) {
+  if (!initialized) {  // 初始化：没有帧时候设置第一帧，有了之后使用当前帧和第一帧进行初始化
     // use initializer!
     // first frame set. fh is kept by coarseInitializer.
     if (coarseInitializer->frameID < 0) {
-      coarseInitializer->setFirst(&HCalib, fh);
+      coarseInitializer->setFirst(&HCalib, fh);  // 设置第一帧
       fh->setImuData(imu_data);
       imu_data.clear();
     } else {
-      if (coarseInitializer->trackFrame(fh, outputWrapper)) // if SNAPPED
+      if (coarseInitializer->trackFrame(fh, outputWrapper)) // 跟踪新帧
       {
-        initializeFromInitializer(fh);
+        initializeFromInitializer(fh);  // 使用当前帧和第一帧进行初始化
         if (initFailed)
           return;
         lock.unlock();
-        deliverTrackedFrame(fh, true);
+        deliverTrackedFrame(fh, true);  // 前后端的接口
       } else {
         // if still initializing
         fh->shell->poseValid = false;
@@ -718,7 +718,7 @@ void FullSystem::addActiveFrame(const std::vector<Vec7> &new_imu_data,
                             coarse_tracker_->lastRef->imu_bias, &HCalib);
     }
 
-    Vec4 tres = trackNewCoarse(fh);
+    Vec4 tres = trackNewCoarse(fh);   // 跟踪当前帧
     if (!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) ||
         !std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3])) {
       printf("Initial Tracking failed: LOST!\n");
@@ -759,11 +759,11 @@ void FullSystem::addActiveFrame(const std::vector<Vec7> &new_imu_data,
       ow->publishCamPose(fh->shell, &HCalib);
 
     lock.unlock();
-    deliverTrackedFrame(fh, needToMakeKF);
+    deliverTrackedFrame(fh, needToMakeKF);   // 前后端接口
     return;
   }
 }
-void FullSystem::deliverTrackedFrame(FrameHessian *fh, bool needKF) {
+void FullSystem::deliverTrackedFrame(FrameHessian *fh, bool needKF) {  // 对跟踪的帧进行处理
   if (goStepByStep && lastRefStopID != coarse_tracker_->refFrameID) {
     MinimalImageF3 img(wG[0], hG[0], fh->dI);
     IOWrap::displayImage("frameToTrack", &img);
@@ -778,7 +778,7 @@ void FullSystem::deliverTrackedFrame(FrameHessian *fh, bool needKF) {
     handleKey(IOWrap::waitKey(1));
 
   if (needKF)
-    makeKeyFrame(fh);
+    makeKeyFrame(fh);  //! 重要
   else
     makeNonKeyFrame(fh);
 }
@@ -794,10 +794,10 @@ void FullSystem::makeNonKeyFrame(FrameHessian *fh) {
     fh->setEvalPT_scaled(fh->shell->camToWorld, fh->shell->aff_g2l);
   }
 
-  traceNewCoarse(fh);
+  traceNewCoarse(fh);  // 这不是之前trace过了么？？？ 草 之前是track 这里是trace
   delete fh;
 }
-
+//! ===================重要=====================
 void FullSystem::makeKeyFrame(FrameHessian *fh) {
   // needs to be set by mapping thread
   {
@@ -808,19 +808,19 @@ void FullSystem::makeKeyFrame(FrameHessian *fh) {
     fh->setEvalPT_scaled(fh->shell->camToWorld, fh->shell->aff_g2l);
   }
 
-  traceNewCoarse(fh);
+  traceNewCoarse(fh);  // 利用新的帧 fh 对关键帧中的ImmaturePoint进行更新
 
   boost::unique_lock<boost::mutex> lock(mapMutex);
 
   // Flag Frames to be Marginalized.
-  flagFramesForMarginalization(fh);
+  flagFramesForMarginalization(fh);  //! 标记需要被边缘化的帧
 
   // add New Frame to Hessian Struct.
-  fh->setImuData(imu_data);
+  fh->setImuData(imu_data);  //! 设置imu数据 一般会有20-30个imu数据
   imu_data.clear();
   if (setting_enable_imu && HCalib.imu_initialized) {
     fh->propagateImuState(allKeyFramesHistory.back(),
-                          coarse_tracker_->lastRef->imu_bias, &HCalib);
+                          coarse_tracker_->lastRef->imu_bias, &HCalib);  //! 重要：利用imu数据进行预积分
   }
   fh->idx = frameHessians.size();
   frameHessians.push_back(fh);
@@ -863,10 +863,10 @@ void FullSystem::makeKeyFrame(FrameHessian *fh) {
     setPrecalcValues();
   }
 
-  // OPTIMIZE ALL
+  //! ================== OPTIMIZE ALL ==============================
   fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
   auto start = std::chrono::steady_clock::now();
-  float rmse = optimize(setting_maxOptIterations);
+  float rmse = optimize(setting_maxOptIterations);   //! 重要，优化rmse=7.5 ，使用rmse来判断是否需要重新进行初始化
   auto end = std::chrono::steady_clock::now();
   opt_tt.push_back(
       std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
@@ -894,7 +894,7 @@ void FullSystem::makeKeyFrame(FrameHessian *fh) {
   if (isLost)
     return;
 
-  // REMOVE OUTLIER
+  //! REMOVE OUTLIER
   removeOutliers();
 
   // reset imu states for initialization
@@ -919,14 +919,14 @@ void FullSystem::makeKeyFrame(FrameHessian *fh) {
 
   // debugPlot("post Optimize");
 
-  // (Activate-)Marginalize Points
+  //! (Activate-)Marginalize Points
   flagPointsForRemoval();
   ef->dropPointsF();
   getNullspaces(ef->lastNullspaces_pose, ef->lastNullspaces_scale,
                 ef->lastNullspaces_affA, ef->lastNullspaces_affB);
   ef->marginalizePointsF();
 
-  // add new Immature points & new residuals
+  //! add new Immature points & new residuals 将新的ImmaturePoint加入到frameHessians中
   makeNewTraces(fh, 0);
 
   for (IOWrap::Output3DWrapper *ow : outputWrapper) {
@@ -938,7 +938,7 @@ void FullSystem::makeKeyFrame(FrameHessian *fh) {
 
   for (unsigned int i = 0; i < frameHessians.size(); i++)
     if (frameHessians[i]->flaggedForMarginalization) {
-      marginalizeFrame(frameHessians[i]);
+      marginalizeFrame(frameHessians[i]);   //! 将不需要的关键帧进行边缘化
       i = 0;
     }
 
@@ -1073,7 +1073,7 @@ void FullSystem::makeNewTraces(FrameHessian *newFrame, float *gtDepth) {
   // int numPointsTotal = makePixelStatus(newFrame->dI, selectionMap, wG[0],
   // hG[0], setting_desiredDensity);
   int numPointsTotal = pixelSelector->makeMaps(newFrame, selectionMap,
-                                               setting_desiredImmatureDensity);
+                                               setting_desiredImmatureDensity); // 处理图像金字塔第０层
 
   newFrame->pointHessians.reserve(numPointsTotal * 1.2f);
   // fh->pointHessiansInactive.reserve(numPointsTotal*1.2f);

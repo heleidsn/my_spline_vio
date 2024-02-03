@@ -64,7 +64,7 @@ void EFFrame::takeData() {
   frameID = data->frameID;
 }
 
-void EFPoint::takeData() {
+void EFPoint::takeData() {   //@ 计算线性化更新后的残差   //! 没平方叫残差, 平方叫能量
   priorF = data->hasDepthPrior
                ? setting_idepthFixPrior * SCALE_IDEPTH * SCALE_IDEPTH
                : 0;
@@ -73,7 +73,8 @@ void EFPoint::takeData() {
 }
 
 void EFResidual::fixLinearizationF(EnergyFunctional *ef) {
-  Vec8f dp = ef->adHTdeltaF[hostIDX + ef->nFrames * targetIDX];
+  Vec8f dp = ef->adHTdeltaF[hostIDX + ef->nFrames * targetIDX];  // 得到hostIDX --> targetIDX的状态增量
+
 
   // compute Jp*delta
   __m128 Jp_delta_x =
@@ -87,7 +88,7 @@ void EFResidual::fixLinearizationF(EnergyFunctional *ef) {
 
   for (int i = 0; i < patternNum; i += 4) {
     // PATTERN: rtz = resF - [JI*Jp Ja]*delta.
-    __m128 rtz = _mm_load_ps(((float *)&J->resF) + i);
+    __m128 rtz = _mm_load_ps(((float *)&J->resF) + i);  // 光度残差
     rtz = _mm_sub_ps(
         rtz, _mm_mul_ps(_mm_load_ps(((float *)(J->JIdx)) + i), Jp_delta_x));
     rtz = _mm_sub_ps(
@@ -96,7 +97,7 @@ void EFResidual::fixLinearizationF(EnergyFunctional *ef) {
         rtz, _mm_mul_ps(_mm_load_ps(((float *)(J->JabF)) + i), delta_a));
     rtz = _mm_sub_ps(
         rtz, _mm_mul_ps(_mm_load_ps(((float *)(J->JabF + 1)) + i), delta_b));
-    _mm_store_ps(((float *)&res_toZeroF) + i, rtz);
+    _mm_store_ps(((float *)&res_toZeroF) + i, rtz);  // 存储在res_toZeroF
   }
 
   isLinearized = true;

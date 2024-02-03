@@ -1,7 +1,7 @@
 PROJECT(spline_vio)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
 
-set(BUILD_TYPE Release)
+# set(BUILD_TYPE Release)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 find_package(SuiteParse REQUIRED)

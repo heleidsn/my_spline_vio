@@ -160,8 +160,8 @@ private:
   double linAllPointSinle(PointHessian *point, float outlierTHSlack, bool plot);
 
   // mainPipelineFunctions
-  Vec4 trackNewCoarse(FrameHessian *fh);
-  void traceNewCoarse(FrameHessian *fh);
+  Vec4 trackNewCoarse(FrameHessian *fh);  //!< 计算新帧的位姿  return Vec4(achievedRes[0], flowVecs[0], flowVecs[1], flowVecs[2]);
+  void traceNewCoarse(FrameHessian *fh);  //!< 更新未成熟点
   void activatePoints();
   void activatePointsMT();
   void activatePointsOldFirst();

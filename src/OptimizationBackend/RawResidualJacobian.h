@@ -26,28 +26,28 @@
 #include "util/NumType.h"
 
 namespace dso {
-struct RawResidualJacobian {
+struct RawResidualJacobian {            //!< 总领全局 协调各方
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   // ================== new structure: save independently =============.
-  VecNRf resF;
+  VecNRf resF;   //8*1                  //!< 每个patch的8个残差  MAX_RES_PER_POINT=8  Matrix<float, MAX_RES_PER_POINT, 1>
 
   // the two rows of d[x,y]/d[xi].
-  Vec6f Jpdxi[2]; // 2x6
+  Vec6f Jpdxi[2]; // 2x6                //!< 点对位姿：旋转3+平移3
 
   // the two rows of d[x,y]/d[C].
-  VecCf Jpdc[2]; // 2x4
+  VecCf Jpdc[2]; // 2x4                 //!< 点对相机内参：fx,fy,cx,cy
 
   // the two rows of d[x,y]/d[idepth].
-  Vec2f Jpdd; // 2x1
+  Vec2f Jpdd; // 2x1                    //!< 点对逆深度
 
   // the two columns of d[r]/d[x,y].
-  VecNRf JIdx[2]; // 9x2
+  VecNRf JIdx[2]; // 9x2                //!< patch光度误差对点, 8×2：x,y
 
-  // = the two columns of d[r] / d[ab]
-  VecNRf JabF[2]; // 9x2
+  // = the two columns of d[r] / d[ab]  
+  VecNRf JabF[2]; // 9x2                //!< patch光度误差对光度仿射， 8x2：a,b
 
   // = JIdx^T * JIdx (inner product). Only as a shorthand.
-  Mat22f JIdx2; // 2x2
+  Mat22f JIdx2; // 2x2                  
   // = Jab^T * JIdx (inner product). Only as a shorthand.
   Mat22f JabJIdx; // 2x2
   // = Jab^T * Jab (inner product). Only as a shorthand.

@@ -316,9 +316,9 @@ struct FrameHessian {
   Vec21 state_imu_scaled;
   Vec21 state_imu_backup;
   Vec21 step_imu;
-  Eigen::Ref<Vec6> imu_bias;
+  Eigen::Ref<Vec6> imu_bias;     // 加速度计的bias和陀螺仪的bias 6维度
   Eigen::Ref<Vec3> spline_l_rot; // linear rot
-  Eigen::Ref<Vec6> spline_q;     // quadratic
+  Eigen::Ref<Vec6> spline_q;     // quadratic  //! 这里使用了6*1的数组来表示两个曲线的系数，前面为路径曲线，后面为旋转曲线
   Eigen::Ref<Vec6> spline_c;     // cubic
 
   std::vector<ImuData> imu_data;
@@ -370,10 +370,10 @@ struct FrameHessian {
         SCALE_SC_ROT_INVERSE * state_imu_scaled.segment<3>(18);
   }
 
-  inline Vec3 getSplineAcc(double t, bool use_state_zero = false) const {
+  inline Vec3 getSplineAcc(double t, bool use_state_zero = false) const {   //! equation 14 in spline vio paper
     Vec3 acc;
-    if (!use_state_zero) {
-      acc = (2 * spline_q + 6 * t * spline_c).head(3);
+    if (!use_state_zero) {  // todo: meaning of use_state_zero
+      acc = (2 * spline_q + 6 * t * spline_c).head(3);  //! using head(3) to get translation spline
     } else {
       acc = 2 * SCALE_SQ_TRANS * state_imu_zero.segment<3>(9) +
             6 * t * SCALE_SC_TRANS * state_imu_zero.segment<3>(15);
@@ -381,8 +381,8 @@ struct FrameHessian {
     return acc;
   }
 
-  inline Vec3 getSplineGryo(double t) const {
-    return spline_l_rot + (2 * t * spline_q + 3 * t * t * spline_c).tail(3);
+  inline Vec3 getSplineGryo(double t) const { //! 从旋转曲线中得到角速度  现在最重要的是分析出来能改进哪里
+    return spline_l_rot + (2 * t * spline_q + 3 * t * t * spline_c).tail(3);  //! equation 16 in spline vio paper, spline_l_rot is the first item, using tail(3) to get rotation spline
   }
 
   inline Vec3 getSplineTw_c2t(double t) const {
@@ -390,17 +390,17 @@ struct FrameHessian {
     return t * shell->velInWorld + (t2 * spline_q + t * t2 * spline_c).head(3);
   }
 
-  inline Mat33 getSplineR_c_t(double t, bool use_state_zero = false) const {
+  inline Mat33 getSplineR_c_t(double t, bool use_state_zero = false) const {  //! 使用spline得到t时刻的旋转矩阵  R(t) cam2world
     double t2 = t * t;
     Vec3 so3;
     if (!use_state_zero) {
-      so3 = t * spline_l_rot + (t2 * spline_q + t * t2 * spline_c).tail(3);
+      so3 = t * spline_l_rot + (t2 * spline_q + t * t2 * spline_c).tail(3);  //! 转换到李代数上进行计算
     } else {
       so3 = t * SCALE_SL_ROT * state_imu_zero.segment<3>(6) +
             t2 * SCALE_SQ_ROT * state_imu_zero.segment<3>(12) +
             t * t2 * SCALE_SC_ROT * state_imu_zero.segment<3>(18);
     }
-    return SO3::exp(so3).matrix();
+    return SO3::exp(so3).matrix();  //! 使用李代数so3构造旋转矩阵
   }
 
   void getImuHi(CalibHessian *HCalib, double tt, Mat36 &JsTW, Mat296 &JfTW,
@@ -618,7 +618,7 @@ struct PointHessian {
   }
 
   std::vector<PointFrameResidual *>
-      residuals; // only contains good residuals (not OOB and not OUTLIER).
+      residuals; // only contains good residuals (not OOB and not OUTLIER).  //!<  每个关键帧中的 PointHessian 可以往其他帧投影，投影会形成残差，这些残差会被放在这里
                  // Arbitrary order.
   std::pair<PointFrameResidual *, ResState>
       lastResiduals[2]; // contains information about residuals to the last two

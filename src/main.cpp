@@ -192,7 +192,7 @@ void VioNode::imageMessageCallback(const sensor_msgs::ImageConstPtr &msg) {
       undistorter_->undistort<unsigned char>(&minImg, 1, 0, 1.0f);
   undistImg->timestamp = msg->header.stamp.toSec();
 
-  img_queue_.push(undistImg);
+  img_queue_.push(undistImg);  // 对图像进行预处理，然后加入到img_queue_中
 
   boost::unique_lock<boost::mutex> imu_lock(imu_queue_mutex_);
   while (!imu_queue_.empty() && !img_queue_.empty() &&
@@ -210,7 +210,7 @@ void VioNode::imageMessageCallback(const sensor_msgs::ImageConstPtr &msg) {
     assert(!imu_queue_.empty());
 
     if (!cur_imu_data.empty()) {
-      // interpolate imu data at cur image time
+      // interpolate imu data at cur image time  在当前图像时间处插值imu数据 得到当前图像时间处的imu数据
       Vec7 last_imu_data =
           ((imu_queue_.front()[0] - cur_img->timestamp) * cur_imu_data.back() +
            (cur_img->timestamp - cur_imu_data.back()[0]) * imu_queue_.front()) /
@@ -219,7 +219,7 @@ void VioNode::imageMessageCallback(const sensor_msgs::ImageConstPtr &msg) {
       cur_imu_data.push_back(last_imu_data);
 
       auto start = std::chrono::steady_clock::now();
-      full_system_->addActiveFrame(cur_imu_data, cur_img, incoming_id_);
+      full_system_->addActiveFrame(cur_imu_data, cur_img, incoming_id_);  // 将该帧加入到full_system_中
       auto end = std::chrono::steady_clock::now();
       frame_tt_.push_back(
           std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
@@ -260,7 +260,7 @@ int main(int argc, char **argv) {
   std::vector<double> tfm_imu;
   double imu_rate, imu_acc_nd, imu_acc_rw, imu_gyro_nd, imu_gyro_rw;
   std::string imu_topic, cam_topic, calib, results_path;
-  if (!nhPriv.getParam("T_imu/data", tfm_imu) ||
+  if (!nhPriv.getParam("T_imu/data", tfm_imu) ||  //! transformation of the main camera in IMU frame 从相机坐标系到IMU坐标系的变换 在calibs/EuRoC/calib.yaml中  在IMU坐标系下的相机坐标系
       !nhPriv.getParam("rate_hz", imu_rate) ||
       !nhPriv.getParam("accelerometer_noise_density", imu_acc_nd) ||
       !nhPriv.getParam("accelerometer_random_walk", imu_acc_rw) ||
@@ -279,7 +279,7 @@ int main(int argc, char **argv) {
   bool nomt;
   int preset, mode;
   std::string vignette, gamma;
-  nhPriv.param("quiet", setting_debugout_runquiet, true);
+  nhPriv.param("quiet", setting_debugout_runquiet, false);
   nhPriv.param("nogui", disableAllDisplay, false);
   nhPriv.param("nomt", nomt, false);
   nhPriv.param("preset", preset, 0);
@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
   cv::Mat tfm_imu_cv = cv::Mat(tfm_imu);
   tfm_imu_cv = tfm_imu_cv.reshape(0, 4);
   Mat44 tfm_imu_cam;
-  cv::cv2eigen(tfm_imu_cv, tfm_imu_cam);
+  cv::cv2eigen(tfm_imu_cv, tfm_imu_cam);  // 将矩阵从opencv格式转换到eigen格式
   setting_rot_imu_cam = tfm_imu_cam.topLeftCorner<3, 3>();
 
   setting_weight_imu = Mat66::Identity();
@@ -329,7 +329,7 @@ int main(int argc, char **argv) {
     rosbag::View view(bag, rosbag::TopicQuery(topics));
 
     sensor_msgs::ImageConstPtr img;
-    BOOST_FOREACH (rosbag::MessageInstance const m, view) {
+    BOOST_FOREACH (rosbag::MessageInstance const m, view) {  // 和传统的for或者std::for_each()算法比起来，BOOST_FOREACH显得更加优雅而简洁。
       if (vio_node.isLost) {
         break;
       }

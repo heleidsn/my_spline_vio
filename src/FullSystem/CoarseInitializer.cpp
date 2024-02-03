@@ -271,7 +271,7 @@ bool CoarseInitializer::trackFrame(
       Pnt *ptsl = points[lvl];
       for (int i = 0; i < npts; i++) {
         ptsl[i].iR = 1;
-        ptsl[i].idepth_new = 1;
+        ptsl[i].idepth_new = 1;  // 将所有points上的逆深度都设为1
         ptsl[i].lastHessian = 0;
       }
     }
@@ -295,7 +295,7 @@ bool CoarseInitializer::trackFrame(
     Vec8f b, bsc;
     resetPoints(lvl);
     Vec3f resOld = calcResAndGS(lvl, H, b, Hsc, bsc, refToNew_current,
-                                refToNew_aff_current, false);
+                                refToNew_aff_current, false);  // 计算Hessian矩阵等信息
     applyStep(lvl);
 
     float lambda = 0.1;

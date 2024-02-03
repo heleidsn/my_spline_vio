@@ -1,10 +1,10 @@
 <launch>
   <arg name="start_frame" default="0"/>
-  <arg name="bag" default=""/>
-  <arg name="results" default="$(env HOME)/Desktop/results.txt"/>
+  <!-- <arg name="bag" default=""/>
+  <arg name="results" default="$(env HOME)/Desktop/results.txt"/> -->
 
-  <!-- <arg name="bag" default="$(env HOME)/Workspace/data/EuRoC/mh1.bag"/>
-  <arg name="results" default="$(env HOME)/Workspace/spline_vio_tests/results/SplineVIO/mh1.txt"/> -->
+  <arg name="bag" default="$(env HOME)/data_set/euroc/MH_01_easy.bag"/>
+  <arg name="results" default="$(env HOME)/data_set/euroc/result_mh01.txt"/>
 
   <rosparam command="load" file="$(find spline_vio)/calibs/EuRoC/calib.yaml" ns="spline_vio"/>
 

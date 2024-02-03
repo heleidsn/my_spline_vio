@@ -183,18 +183,18 @@ void FrameHessian::getImuHi(CalibHessian *HCalib, double tt, Mat36 &JsTW,
 
   double scale_scaled = HCalib->getScaleScaled(HCalib->scale_trapped);
   Vec3 spline_acc = getSplineAcc(tt, HCalib->scale_trapped);
-  Vec3 acc_w = scale_scaled * spline_acc + HCalib->getG(HCalib->scale_trapped);
-  Mat33 rot_t_w = getSplineR_c_t(tt, HCalib->scale_trapped).transpose() *
+  Vec3 acc_w = scale_scaled * spline_acc + HCalib->getG(HCalib->scale_trapped);  //! acc in world frame
+  Mat33 rot_t_w = getSplineR_c_t(tt, HCalib->scale_trapped).transpose() *        //! rotation at time t
                   get_camToWorld_evalPT().rotationMatrix().transpose();
   Mat33 rot_i_w = setting_rot_imu_cam * rot_t_w;
-  Mat33 R_acc_t_hat = setting_rot_imu_cam * SO3::hat(rot_t_w * acc_w);
+  Mat33 R_acc_t_hat = setting_rot_imu_cam * SO3::hat(rot_t_w * acc_w);  // hat为向量到反对称矩阵
 
-  Eigen::Matrix<double, 6, 3> Js;
+  Eigen::Matrix<double, 6, 3> Js;  // todo: meaning of Js
   Js.setZero();
   // scale
   Js.block<3, 1>(0, 0) = SCALE_SCALE * rot_i_w * spline_acc;
 
-  Eigen::Matrix<double, 6, 29> Jf;
+  Eigen::Matrix<double, 6, 29> Jf; // todo: meaning of Jf
   Jf.setZero();
   // acc
   Jf.block<3, 3>(0, 8) = SCALE_BA * Mat33::Identity(); // bias_a
@@ -225,7 +225,7 @@ void FrameHessian::getImuHi(CalibHessian *HCalib, double tt, Mat36 &JsTW,
     Jf.block<3, 3>(0, 3) = SCALE_XI_ROT * rot_i_w * SO3::hat(acc_w);
   }
 
-  JsTW = Js.transpose() * setting_weight_imu;
+  JsTW = Js.transpose() * setting_weight_imu;   // setting_weight_imu -> Mat66
   JfTW = Jf.transpose() * setting_weight_imu;
   Hss = JsTW * Js;
   Hff = JfTW * Jf;
@@ -410,7 +410,7 @@ void FrameHessian::propagateImuState(FrameShell *last_shell,
   // calculate current velocity
   double t = last_shell->timestamp - shell->timestamp;
   shell->velInWorld = last_shell->velInWorld -
-                      (2 * t * spline_q + 3 * t * t * spline_c).head(3);
+                      (2 * t * spline_q + 3 * t * t * spline_c).head(3);  //! 使用IMU数据计算速度
 }
 
 void FrameHessian::updateVel(FrameShell *last_shell) {

@@ -40,7 +40,7 @@ class CalibHessian;
 class EFResidual;
 
 enum ResLocation { ACTIVE = 0, LINEARIZED, MARGINALIZED, NONE };
-enum ResState { IN = 0, OOB, OUTLIER };
+enum ResState { IN = 0, OOB, OUTLIER };  // OOB = out of bounds
 
 struct FullJacRowT {
   Eigen::Vector2f projectedTo[MAX_RES_PER_POINT];

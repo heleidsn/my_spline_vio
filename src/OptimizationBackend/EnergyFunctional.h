@@ -31,25 +31,25 @@
 
 namespace dso {
 
-class PointFrameResidual;
-class CalibHessian;
-class FrameHessian;
-class PointHessian;
+class PointFrameResidual;   //!< 在点到帧的重投影过程中产生的残差
+class CalibHessian;         //!< 相机内参的Hessian矩阵
+class FrameHessian;         //!< 帧的Hessian矩阵
+class PointHessian;         //!< 点的Hessian矩阵
 
-class EFResidual;
-class EFPoint;
-class EFFrame;
-class EnergyFunctional;
-class AccumulatedTopHessian;
-class AccumulatedTopHessianSSE;
-class AccumulatedSCHessian;
+class EFResidual;           //!< 残差的能量函数
+class EFPoint;              //!< 点的能量函数
+class EFFrame;              //!< 帧的能量函数
+class EnergyFunctional;     //!< 总领全局 协调各方
+class AccumulatedTopHessian;            
+class AccumulatedTopHessianSSE;         
+class AccumulatedSCHessian;             
 class AccumulatedSCHessianSSE;
 
 extern bool EFAdjointsValid;
 extern bool EFIndicesValid;
 extern bool EFDeltaValid;
 
-class EnergyFunctional {
+class EnergyFunctional {  //!< 总领全局 协调各方
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   friend class EFFrame;

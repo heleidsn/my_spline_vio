@@ -304,8 +304,8 @@ void FullSystem::printOptRes(const Vec3 &res, double resL, double resM,
          sqrtf((float)(res[0] / (patternNum * ef->resInA))), ef->resInA,
          ef->resInM, a, b);
 }
-
-float FullSystem::optimize(int mnumOptIts) {
+//! ================＝＝＝＝＝＝＝=======重点＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+float FullSystem::optimize(int mnumOptIts) {   //! ref:https://www.cnblogs.com/JingeTU/p/8395046.html
 
   if (frameHessians.size() < 2)
     return 0;
@@ -316,14 +316,14 @@ float FullSystem::optimize(int mnumOptIts) {
 
   // get statistics and active residuals.
 
-  activeResiduals.clear();
+  activeResiduals.clear();   //!< 清空activeResiduals
   int numPoints = 0;
   int numLRes = 0;
-  for (FrameHessian *fh : frameHessians)
-    for (PointHessian *ph : fh->pointHessians) {
-      for (PointFrameResidual *r : ph->residuals) {
-        if (!r->efResidual->isLinearized) {
-          activeResiduals.push_back(r);
+  for (FrameHessian *fh : frameHessians)                //!< 遍历所有帧
+    for (PointHessian *ph : fh->pointHessians) {        //!< 遍历所有点
+      for (PointFrameResidual *r : ph->residuals) {  //!< 遍历所有投影残差
+        if (!r->efResidual->isLinearized) {         
+          activeResiduals.push_back(r);             //! 将没有被线性化（或者没有求导）的点投影残差r加入activeResiduals  有大概10000个activeResiduals
           r->resetOOB();
         } else
           numLRes++;
@@ -333,12 +333,12 @@ float FullSystem::optimize(int mnumOptIts) {
 
   if (!setting_debugout_runquiet)
     printf("OPTIMIZE %d pts, %d active res, %d lin res!\n", ef->nPoints,
-           (int)activeResiduals.size(), numLRes);
+           (int)activeResiduals.size(), numLRes); //! 输出优化点数，优化残差数，线性化残差数 一般好像是2000个左右
 
-  Vec3 lastEnergy = linearizeAll(false);
-  double lastEnergyL = calcLEnergy();
-  double lastEnergyM = calcMEnergy();
-
+  Vec3 lastEnergy = linearizeAll(false);  //! 计算相关导数
+  double lastEnergyL = calcLEnergy();     //! 计算优化前的光度能量
+  double lastEnergyM = calcMEnergy();     //! 计算优化前的运动能量
+  //! ---------------迭代之前先求偏导------------------ 调用applyRes_Reductor函数，这个函数对好点做一次中间量的计算，输入数据可看成是linearize返回的偏导值
   if (multiThreading)
     treadReduce.reduce(
         boost::bind(&FullSystem::applyRes_Reductor, this, true, _1, _2, _3, _4),
@@ -354,31 +354,31 @@ float FullSystem::optimize(int mnumOptIts) {
   }
 
   debugPlotTracking();
-
-  double lambda = 1e-1;
+  //! ==================迭代优化===============
+  double lambda = 1e-1;   //! lambda刚开始为0.1，此后每次变为原来的1/4
   float stepsize = 1;
   VecX previousX = VecX::Constant(CPARS + 8 * frameHessians.size(), NAN);
-  for (int iteration = 0; iteration < mnumOptIts; iteration++) {
+  for (int iteration = 0; iteration < mnumOptIts; iteration++) {  //! ==================迭代优化===============
     // solve!
-    backupState(iteration != 0);
+    backupState(iteration != 0);  //* 保存当前的状态，这是为了在优化结果不好的情况下可以回退,backupState函数实现。
     // solveSystemNew(0);
-    solveSystem(iteration, lambda);
+    solveSystem(iteration, lambda);  //! Step1:===============得到优化变量step =====================
     double incDirChange = (1e-20 + previousX.dot(ef->lastX)) /
                           (1e-20 + previousX.norm() * ef->lastX.norm());
     previousX = ef->lastX;
 
-    bool canbreak =
-        doStepFromBackup(stepsize, stepsize, stepsize, stepsize, stepsize);
+    bool canbreak =  //! 但是为什么目前来看这stepsize都是1？ todo: 需要调试看一下
+        doStepFromBackup(stepsize, stepsize, stepsize, stepsize, stepsize);  //! Step2: =======让优化变量生效============= applies step to linearization point.
 
-    // eval new energy!
-    Vec3 newEnergy = linearizeAll(false);
+    // eval new energy!  //! ==============计算新的能量====================== 用上面计算得到的新状态值计算一次新的残差以及偏导数等
+    Vec3 newEnergy = linearizeAll(false);  // 这里的false是指不需要进行修复
     double newEnergyL = calcLEnergy();
     double newEnergyM = calcMEnergy();
 
-    if (!setting_debugout_runquiet) {
+    if (!setting_debugout_runquiet) {  //! ==============输出更新结果======================
       printf("%s %d (L %.2f, dir %.2f, ss %.1f): \t",
              (newEnergy[0] + newEnergy[1] + newEnergyL + newEnergyM <
-              lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM)
+              lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM)  //! 如果新的能量小于上一次的能量，就是Accept，否则reject
                  ? "ACCEPT"
                  : "REJECT",
              iteration, log10(lambda), incDirChange, stepsize);
@@ -386,11 +386,11 @@ float FullSystem::optimize(int mnumOptIts) {
                   frameHessians.back()->aff_g2l().a,
                   frameHessians.back()->aff_g2l().b);
     }
-
+    //! ==============判断新的能量和旧的能量之间的大小关系====================== 如果新残差值小于原来残差值，那么就再调用一次调用applyRes_Reductor函数，接着调整lambda值，否则就回滚到上一次的状态
     if (setting_forceAceptStep ||
         (newEnergy[0] + newEnergy[1] + newEnergyL + newEnergyM <
          lastEnergy[0] + lastEnergy[1] + lastEnergyL + lastEnergyM)) {
-
+      //! 求偏导数  迭代过程中求 随后继续迭代这样
       if (multiThreading)
         treadReduce.reduce(boost::bind(&FullSystem::applyRes_Reductor, this,
                                        true, _1, _2, _3, _4),
@@ -402,10 +402,10 @@ float FullSystem::optimize(int mnumOptIts) {
       lastEnergyL = newEnergyL;
       lastEnergyM = newEnergyM;
 
-      lambda *= 0.25;
-    } else {
+      lambda *= 0.25;  //! lambda进行改变
+    } else {  // 利用之前保存的状态进行回滚
       loadSateBackup();
-      lastEnergy = linearizeAll(false);
+      lastEnergy = linearizeAll(false);  // 效果是将优化之后成为 outlier 的 residual 剔除，剩下正常的 residual 调用一次
       lastEnergyL = calcLEnergy();
       lastEnergyM = calcMEnergy();
       lambda *= 1e2;
@@ -425,7 +425,7 @@ float FullSystem::optimize(int mnumOptIts) {
   ef->setAdjointsF(&HCalib);
   setPrecalcValues();
 
-  lastEnergy = linearizeAll(true);
+  lastEnergy = linearizeAll(true);  // 在跳出循环体之后调用一次 FullSystem::linearizeAll(true)，效果是将优化之后成为 outlier 的 residual 剔除，剩下正常的 residual 调用一次
 
   if (!std::isfinite((double)lastEnergy[0]) ||
       !std::isfinite((double)lastEnergy[1]) ||
@@ -458,7 +458,7 @@ float FullSystem::optimize(int mnumOptIts) {
         MatXX H_tmp, J_tmp;
         VecX b_tmp, r_tmp;
         std::vector<bool> v_tmp;
-        ef->getImuHessian(H_tmp, b_tmp, J_tmp, r_tmp, &HCalib, v_tmp, true);
+        ef->getImuHessian(H_tmp, b_tmp, J_tmp, r_tmp, &HCalib, v_tmp, true);  //! 有一些输出，应该重点是改这里
       }
     }
 

@@ -317,7 +317,7 @@ void EnergyFunctional::getImuHessianCurrentFrame(int fi, CalibHessian *HCalib,
   b.segment<6>(cur_idx + 8) += tmpb;
 
   spline_valid = (cur_fh->shell->trackingRef == prv_fh->shell) &&
-                 (-tpf < setting_maxImuInterval);
+                 (-tpf < setting_maxImuInterval);  // 计算spline是否有效
   bool vel_valid = fi < (nFrames - 1);
   if (spline_valid) {
     /*********************** spline constraint *************************/
@@ -383,22 +383,22 @@ void EnergyFunctional::getImuHessianCurrentFrame(int fi, CalibHessian *HCalib,
       H.block<29, 29>(cur_idx, cur_idx) += cur_fh->Hff;
     }
     for (int j = 0; j < imu_size; j++) {
-      // predict imu reading from spline
-      double tt = cur_fh->imu_data[j].timestamp - cur_fh->shell->timestamp;
+      // predict imu reading from spline  //! ===============重点：从spline预测IMU读数《《《《《《《《《《《《《《《
+      double tt = cur_fh->imu_data[j].timestamp - cur_fh->shell->timestamp;  //! 这里的时间应该是秒
       assert(tt <= 0);
 
-      Vec6 imu_pred;
+      Vec6 imu_pred;  //! 利用tt和spline预测IMU读数 predict imu reading from spline using tt
       imu_pred.head(3) = setting_rot_imu_cam *
                          cur_fh->getSplineR_c_t(tt).transpose() *
                          cur_fh->PRE_worldToCam.rotationMatrix() *
                          (HCalib->getScaleScaled() * cur_fh->getSplineAcc(tt) +
-                          HCalib->getG());
-      imu_pred.tail(3) = setting_rot_imu_cam * cur_fh->getSplineGryo(tt);
+                          HCalib->getG());  //! equation 14 in spline vio paper
+      imu_pred.tail(3) = setting_rot_imu_cam * cur_fh->getSplineGryo(tt);  //! equation 16 in spline vio paper  可能就是从这里改！！！！！
       imu_pred += cur_fh->imu_bias;
-      Vec6 imu_meas;
-      imu_meas.head(3) = cur_fh->imu_data[j].acc;
+      Vec6 imu_meas;   //! imu的测量值
+      imu_meas.head(3) = cur_fh->imu_data[j].acc;      
       imu_meas.tail(3) = cur_fh->imu_data[j].gyro;
-      Vec6 r_imu = imu_pred - imu_meas;
+      Vec6 r_imu = imu_pred - imu_meas;  //! ==============计算IMU残差==================
 
       if (HCalib->scale_trapped) {
         b.segment<3>(CPARS) += cur_fh->JsTW[j] * r_imu;
@@ -409,8 +409,8 @@ void EnergyFunctional::getImuHessianCurrentFrame(int fi, CalibHessian *HCalib,
         Mat33 Hss;
         Mat2929 Hff;
         Mat293 Hfs;
-        cur_fh->getImuHi(HCalib, tt, JsTW, JfTW, Hss, Hff, Hfs);
-        H.block<3, 3>(CPARS, CPARS) += Hss;
+        cur_fh->getImuHi(HCalib, tt, JsTW, JfTW, Hss, Hff, Hfs);  //! get imu info 
+        H.block<3, 3>(CPARS, CPARS) += Hss;    // CPARS = 4
         H.block<29, 3>(cur_idx, CPARS) += Hfs;
         H.block<3, 29>(CPARS, cur_idx) += Hfs.transpose();
         H.block<29, 29>(cur_idx, cur_idx) += Hff;
@@ -420,8 +420,8 @@ void EnergyFunctional::getImuHessianCurrentFrame(int fi, CalibHessian *HCalib,
       }
 
       if (print) {
-        imu_pred_ave += imu_pred;
-        imu_meas_ave += imu_meas;
+        imu_pred_ave += imu_pred;  //! imu_pred_ave 是 IMU预测值的平均值
+        imu_meas_ave += imu_meas;  //! imu_meas_ave 是 IMU测量值的平均值
         count++;
         if (count >= (imu_size / 5) || j == (imu_size - 1)) {
           imu_pred_ave /= count;
@@ -431,7 +431,7 @@ void EnergyFunctional::getImuHessianCurrentFrame(int fi, CalibHessian *HCalib,
                  tt, imu_pred_ave[0], imu_meas_ave[0], imu_pred_ave[1],
                  imu_meas_ave[1], imu_pred_ave[2], imu_meas_ave[2],
                  imu_pred_ave[3], imu_meas_ave[3], imu_pred_ave[4],
-                 imu_meas_ave[4], imu_pred_ave[5], imu_meas_ave[5]);
+                 imu_meas_ave[4], imu_pred_ave[5], imu_meas_ave[5]); //输出：时间，预测加速度，测量加速度，预测陀螺仪，测量陀螺仪
           imu_pred_ave.setZero();
           imu_meas_ave.setZero();
           count = 0;
@@ -443,7 +443,7 @@ void EnergyFunctional::getImuHessianCurrentFrame(int fi, CalibHessian *HCalib,
     printf("id: %d ba: %5.2f %5.2f %5.2f bg: %5.2f %5.2f %5.2f ",
            cur_fh->frameID, cur_fh->imu_bias[0], cur_fh->imu_bias[1],
            cur_fh->imu_bias[2], cur_fh->imu_bias[3], cur_fh->imu_bias[4],
-           cur_fh->imu_bias[5]);
+           cur_fh->imu_bias[5]);  // 输出： 帧id，加速度bias，陀螺仪bias  //! 这些偏差是怎么得到的？？？？
     if (spline_valid) {
       if (vel_valid) {
         printf("r_rv: %.0e %.0e\n", r_cst.head(3).norm(), r_cst.tail(3).norm());
@@ -463,18 +463,18 @@ void EnergyFunctional::getImuHessian(MatXX &H, VecX &b, MatXX &J_cst,
   if (nFrames == 1)
     return;
 
-  int dim = CPARS + 3 + 29 * nFrames;
+  int dim = CPARS + 3 + 29 * nFrames;  //! 4 + 3 + 29 * 8 = 239
 
   if (print) {
     FrameHessian *fh0 = frames[0]->data;
-    printf("id: %d ba: %5.2f %5.2f %5.2f bg: %5.2f %5.2f %5.2f\n", fh0->frameID,
+    printf("id: %d ba: %5.2f %5.2f %5.2f bg: %5.2f %5.2f %5.2f\n", fh0->frameID,  //! 这里是keyframe的ID还是？
            fh0->imu_bias[0], fh0->imu_bias[1], fh0->imu_bias[2],
            fh0->imu_bias[3], fh0->imu_bias[4], fh0->imu_bias[5]);
   }
 
   // get H and b
-  H = MatXX::Zero(dim, dim);
-  b = VecX::Zero(dim);
+  H = MatXX::Zero(dim, dim);  //! 239 * 239
+  b = VecX::Zero(dim);        //! 239 * 1  
   std::vector<MatXX> J_cst_vec;
   std::vector<VecX> r_cst_vec;
   is_spline_valid = std::vector<bool>(nFrames, false);
@@ -483,7 +483,7 @@ void EnergyFunctional::getImuHessian(MatXX &H, VecX &b, MatXX &J_cst,
     MatXX J_cst_i;
     VecX r_cst_i;
     getImuHessianCurrentFrame(i, HCalib, H, b, spline_valid, J_cst_i, r_cst_i,
-                              print);
+                              print);  //! 计算IMU的H和b  有输出
     if (spline_valid) {
       J_cst_vec.push_back(J_cst_i);
       r_cst_vec.push_back(r_cst_i);
@@ -1049,19 +1049,19 @@ void EnergyFunctional::orthogonalize(VecX *b, MatXX *H) {
 
 void EnergyFunctional::solveSystemF(int iteration, double lambda,
                                     CalibHessian *HCalib) {
-  lambda = 1e-5;
+  lambda = 1e-5; // 传进来的参数没有用到。。。
 
   assert(EFDeltaValid);
   assert(EFAdjointsValid);
   assert(EFIndicesValid);
-
-  MatXX HL_top, HA_top, H_sc;
+//! [ ***step 1*** ] 先计算正规方程, 涉及边缘化, 先验, 舒尔补等
+  MatXX HL_top, HA_top, H_sc;  
   VecX bL_top, bA_top, bM_top, b_sc;
-
-  accumulateAF_MT(HA_top, bA_top, multiThreading);
+    //* 针对新的残差, 使用的当前残差, 没有逆深度的部分
+  accumulateAF_MT(HA_top, bA_top, multiThreading);  // 可以参考一点点https://blog.csdn.net/jillar/article/details/123118154
 
   accumulateLF_MT(HL_top, bL_top, multiThreading);
-
+    //* 关于逆深度的Schur部分
   accumulateSCF_MT(H_sc, b_sc, multiThreading);
 
   MatXX HFinal_top = HL_top + HA_top;
@@ -1076,15 +1076,15 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda,
   std::vector<bool> is_spline_valid;
   bool imu_valid = setting_enable_imu && HCalib->imu_initialized;
   int dim = imu_valid ? CPARS + 3 + 29 * nFrames : 8 * nFrames + CPARS;
-  if (imu_valid) {
-    /************************* get imu H b *****************************/
+  if (imu_valid) {  //! 如果开启了IMU 更新H和b HFinal_top  bFinal_top
+    //! ************************* get imu H b *****************************/
     MatXX H_imu;
     VecX b_imu;
     getImuHessian(H_imu, b_imu, J_cst, r_cst, HCalib, is_spline_valid, false);
 
-    /************************* add dso H b *****************************/
+    //! ************************* add dso H b *****************************/
     expandHbtoFitImu(HFinal_top, bFinal_top);
-    HFinal_top += H_imu;
+    HFinal_top += H_imu;  //! 在原来top的基础上加上imu的信息
     bFinal_top += b_imu;
   }
 
@@ -1111,11 +1111,11 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda,
 
   /************************** add SC H b *******************************/
   if (imu_valid) {
-    expandHbtoFitImu(H_sc, b_sc);
+    expandHbtoFitImu(H_sc, b_sc);  //! 还是看不懂。。。
   }
   for (int i = 0; i < dim; i++)
     HFinal_top(i, i) *= (1 + lambda);
-  HFinal_top -= H_sc * (1.0f / (1 + lambda));
+  HFinal_top -= H_sc * (1.0f / (1 + lambda));  //! 这都是干啥呢
   bFinal_top -= b_sc;
 
   if (imu_valid) {
@@ -1161,19 +1161,19 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda,
     // }
   }
 
-  /************************ solve system *****************************/
+  //! ************************ solve system *****************************/
   VecX SVecI = (HFinal_top.diagonal() + VecX::Constant(HFinal_top.cols(), 10))
                    .cwiseSqrt()
                    .cwiseInverse();
   MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
   VecX x = SVecI.asDiagonal() *
-           HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);
+           HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);  //! 使用LDLT分解求解线性方程组
 
   if (imu_valid) {
     VecX x_dso = VecX::Zero(CPARS + 8 * nFrames);
     x_dso.head(CPARS) = x.head(CPARS);
     HCalib->sg_step.setZero();
-    HCalib->sg_step[0] = -x(CPARS);
+    HCalib->sg_step[0] = -x(CPARS);  //! 应该是这里保存了step
     int vi = CPARS + 1;
     if (HCalib->scale_trapped) {
       HCalib->sg_step.tail(2) = -x.segment<2>(CPARS + 1);
@@ -1190,7 +1190,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda,
         vi += 15;
       }
     }
-    x = x_dso.eval();
+    x = x_dso.eval();  // 这里是干啥
   }
 
   // if (iteration >= 2) {
@@ -1202,7 +1202,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda,
 
   // resubstituteF(x, HCalib);
   currentLambda = lambda;
-  resubstituteF_MT(x, HCalib, multiThreading);
+  resubstituteF_MT(x, HCalib, multiThreading);  //! 这又是干啥。。。
   currentLambda = 0;
 }
 
