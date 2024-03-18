@@ -323,7 +323,7 @@ float FullSystem::optimize(int mnumOptIts) {   //! ref:https://www.cnblogs.com/J
     for (PointHessian *ph : fh->pointHessians) {        //!< 遍历所有点
       for (PointFrameResidual *r : ph->residuals) {  //!< 遍历所有投影残差
         if (!r->efResidual->isLinearized) {         
-          activeResiduals.push_back(r);             //! 将没有被线性化（或者没有求导）的点投影残差r加入activeResiduals  有大概10000个activeResiduals
+          activeResiduals.push_back(r);             //! 将没有被线性化（或者没有求导）的点投影残差r加入activeResiduals  有大概10000个activeResiduals 其实这个里面的全部都线性化了
           r->resetOOB();
         } else
           numLRes++;

@@ -828,7 +828,7 @@ void FullSystem::makeKeyFrame(FrameHessian *fh) {
   allKeyFramesHistory.push_back(fh->shell);
   ef->insertFrame(fh, &HCalib);
 
-  setPrecalcValues();
+  setPrecalcValues();  //! 每加入一个新的关键帧，都需要重新计算一下预计算值
 
   // add new residuals for old points
   int numFwdResAdde = 0;

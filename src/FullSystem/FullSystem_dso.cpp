@@ -1327,7 +1327,7 @@ void FullSystem::setPrecalcValues()
 	{
 		fh->targetPrecalc.resize(frameHessians.size());
 		for(unsigned int i=0;i<frameHessians.size();i++)
-			fh->targetPrecalc[i].set(fh, frameHessians[i], &Hcalib);
+			fh->targetPrecalc[i].set(fh, frameHessians[i], &Hcalib);  //! 注意set函数
 	}
 
 	ef->setDeltaF(&Hcalib);

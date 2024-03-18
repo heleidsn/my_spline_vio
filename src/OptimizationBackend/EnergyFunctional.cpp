@@ -1166,7 +1166,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda,
                    .cwiseSqrt()
                    .cwiseInverse();
   MatXX HFinalScaled = SVecI.asDiagonal() * HFinal_top * SVecI.asDiagonal();
-  VecX x = SVecI.asDiagonal() *
+  VecX x = SVecI.asDiagonal() * 
            HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);  //! 使用LDLT分解求解线性方程组
 
   if (imu_valid) {
